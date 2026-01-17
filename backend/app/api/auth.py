@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.models import get_db
+from pydantic import BaseModel
+from app.models import get_db, User
 from app.schemas import (
     LoginRequest,
     LoginResponse,
@@ -12,6 +13,61 @@ from app.schemas import (
 from app.services import AuthService
 
 router = APIRouter()
+
+
+class InitStatusResponse(BaseModel):
+    initialized: bool
+    message: str
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.get("/init-status", response_model=InitStatusResponse)
+async def check_init_status(db: Session = Depends(get_db)):
+    """检查系统是否已初始化（是否有用户）"""
+    user_count = db.query(User).count()
+    if user_count == 0:
+        return InitStatusResponse(initialized=False, message="系统未初始化，请创建管理员账户")
+    return InitStatusResponse(initialized=True, message="系统已初始化")
+
+
+@router.post("/register", response_model=LoginResponse)
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    """注册用户（仅当系统未初始化时可用）"""
+    # 检查是否已有用户
+    user_count = db.query(User).count()
+    if user_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="系统已初始化，不允许注册新用户"
+        )
+    
+    # 验证输入
+    if len(request.username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名至少 3 个字符"
+        )
+    
+    if len(request.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="密码至少 8 个字符"
+        )
+    
+    # 创建用户
+    auth_service = AuthService(db)
+    auth_service.create_user(request.username, request.password)
+    
+    # 返回需要设置 2FA
+    return LoginResponse(
+        access_token="",
+        refresh_token="",
+        requires_2fa_setup=True
+    )
 
 
 @router.post("/login", response_model=LoginResponse)

@@ -52,6 +52,11 @@ export default api
 
 // Auth API
 export const authApi = {
+  initStatus: () => api.get('/auth/init-status'),
+  
+  register: (username: string, password: string) =>
+    api.post('/auth/register', { username, password }),
+  
   login: (username: string, password: string, totpCode?: string) =>
     api.post('/auth/login', { username, password, totp_code: totpCode }),
   

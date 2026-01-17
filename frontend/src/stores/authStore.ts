@@ -28,9 +28,9 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      accessToken: 'dev-token',
-      refreshToken: 'dev-refresh',
-      isAuthenticated: true,  // 开发模式跳过登录
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
       isLocked: false,
       lastActivity: Date.now(),
       pendingUsername: null,
