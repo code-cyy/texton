@@ -17,6 +17,8 @@ import {
   CloudCog,
   AlertCircle,
   Loader2,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,6 +52,12 @@ interface UpdateInfo {
   type?: 'release' | 'commit'
   checking: boolean
   updating: boolean
+}
+
+interface ToastInfo {
+  visible: boolean
+  type: 'success' | 'error' | 'info'
+  message: string
 }
 
 function buildFileTree(files: FileItem[]): FileTreeNode[] {
@@ -179,8 +187,14 @@ export function Sidebar() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, file: null })
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({ hasUpdate: false, checking: false, updating: false })
   const [appVersion, setAppVersion] = useState('1.0.0')
+  const [toast, setToast] = useState<ToastInfo>({ visible: false, type: 'info', message: '' })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isMobile = useMobile()
+
+  const showToast = (type: ToastInfo['type'], message: string) => {
+    setToast({ visible: true, type, message })
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000)
+  }
   
   const loadFiles = async () => {
     setLoading(true)
@@ -289,15 +303,17 @@ export function Sidebar() {
   const handleExportAll = async () => {
     try {
       const response = await filesApi.exportAll()
-      const blob = new Blob([response.data], { type: 'application/json' })
+      const blob = new Blob([response.data], { type: 'application/zip' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `secure-editor-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `texton-backup-${new Date().toISOString().slice(0, 10)}.zip`
       a.click()
       URL.revokeObjectURL(url)
+      showToast('success', '导出成功')
     } catch (error) {
       console.error('Failed to export all files:', error)
+      showToast('error', '导出失败')
     }
   }
 
@@ -323,6 +339,20 @@ export function Sidebar() {
     try {
       const response = await systemApi.checkUpdate()
       const data = response.data
+      
+      if (data.error) {
+        showToast('error', data.error || '检查更新失败')
+        setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
+        return
+      }
+      
+      if (data.message && !data.has_update) {
+        // 未配置仓库或其他提示
+        showToast('info', data.message)
+        setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
+        return
+      }
+      
       setUpdateInfo({
         hasUpdate: data.has_update,
         latestVersion: data.latest_version,
@@ -334,14 +364,14 @@ export function Sidebar() {
         updating: false,
       })
       
-      if (!data.has_update && !data.error) {
-        // 短暂显示"已是最新"
-        setTimeout(() => {
-          setUpdateInfo(prev => ({ ...prev, hasUpdate: false }))
-        }, 3000)
+      if (data.has_update) {
+        showToast('info', `发现新版本 ${data.type === 'release' ? 'v' : '#'}${data.latest_version}`)
+      } else {
+        showToast('success', '已是最新版本')
       }
     } catch (error) {
       console.error('Failed to check update:', error)
+      showToast('error', '检查更新失败，请检查网络连接')
       setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
     }
   }
@@ -615,6 +645,28 @@ export function Sidebar() {
             <ContextMenuItem icon={<Download className="h-4 w-4" />} label="导出" onClick={() => handleExport(contextMenu.file!)} />
             <div className="h-px bg-border my-1" />
             <ContextMenuItem icon={<Trash2 className="h-4 w-4" />} label="删除" onClick={() => handleDelete(contextMenu.file!)} className="text-red-500 hover:text-red-500" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast 提示 */}
+      <AnimatePresence>
+        {toast.visible && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 50, x: '-50%' }}
+            className={cn(
+              "fixed bottom-20 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium",
+              toast.type === 'success' && "bg-green-500 text-white",
+              toast.type === 'error' && "bg-red-500 text-white",
+              toast.type === 'info' && "bg-blue-500 text-white"
+            )}
+          >
+            {toast.type === 'success' && <CheckCircle className="h-4 w-4" />}
+            {toast.type === 'error' && <XCircle className="h-4 w-4" />}
+            {toast.type === 'info' && <AlertCircle className="h-4 w-4" />}
+            {toast.message}
           </motion.div>
         )}
       </AnimatePresence>

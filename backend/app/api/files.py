@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 from app.models import get_db, User
 from app.schemas import (
@@ -13,6 +13,8 @@ from app.schemas import (
 from app.services import FileService
 from app.api.deps import get_current_user
 import json
+import zipfile
+import io
 from datetime import datetime
 
 router = APIRouter()
@@ -45,34 +47,58 @@ async def export_all_files(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """导出所有文件为 JSON"""
+    """导出所有文件为 ZIP 压缩包"""
     file_service = FileService(db)
     files = file_service.list_files(include_deleted=False)
     
-    export_data = []
-    for f in files:
-        file_obj = file_service.get_file(f.id)
-        if file_obj:
-            content = file_service.get_file_content(file_obj)
-            export_data.append({
-                "name": f.name,
-                "path": f.path,
-                "content": content,
-                "language": f.language,
-                "created_at": f.created_at.isoformat() if f.created_at else None,
-                "updated_at": f.updated_at.isoformat() if f.updated_at else None,
-            })
+    # 创建内存中的 ZIP 文件
+    zip_buffer = io.BytesIO()
     
-    export_json = json.dumps({
-        "exported_at": datetime.utcnow().isoformat(),
-        "files": export_data
-    }, ensure_ascii=False, indent=2)
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 添加元数据文件
+        metadata = {
+            "exported_at": datetime.utcnow().isoformat(),
+            "file_count": len(files),
+            "files": []
+        }
+        
+        for f in files:
+            file_obj = file_service.get_file(f.id)
+            if file_obj:
+                content = file_service.get_file_content(file_obj)
+                
+                # 文件路径（去掉开头的斜杠）
+                file_path = f.path.lstrip('/')
+                if not file_path:
+                    file_path = f.name
+                
+                # 添加文件到 ZIP
+                zip_file.writestr(file_path, content.encode('utf-8'))
+                
+                # 记录元数据
+                metadata["files"].append({
+                    "name": f.name,
+                    "path": f.path,
+                    "language": f.language,
+                    "created_at": f.created_at.isoformat() if f.created_at else None,
+                    "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+                })
+        
+        # 添加元数据文件
+        zip_file.writestr(
+            "_metadata.json",
+            json.dumps(metadata, ensure_ascii=False, indent=2).encode('utf-8')
+        )
     
-    return Response(
-        content=export_json,
-        media_type="application/json",
+    zip_buffer.seek(0)
+    
+    filename = f"texton-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
         headers={
-            "Content-Disposition": f"attachment; filename=secure-editor-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+            "Content-Disposition": f"attachment; filename={filename}"
         }
     )
 
