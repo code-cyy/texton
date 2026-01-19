@@ -96,6 +96,9 @@ export const filesApi = {
   restore: (id: number) =>
     api.post(`/files/${id}/restore`),
   
+  reorder: (fileIds: number[]) =>
+    api.post('/files/reorder', { file_ids: fileIds }),
+  
   duplicate: (id: number) =>
     api.post(`/files/${id}/duplicate`),
   

@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.models import get_db, User
 from app.schemas import (
     FileCreate,
@@ -20,6 +21,10 @@ from datetime import datetime
 router = APIRouter()
 
 
+class ReorderRequest(BaseModel):
+    file_ids: List[int]  # 按顺序排列的文件 ID 列表
+
+
 @router.get("", response_model=List[FileListResponse])
 async def list_files(
     include_deleted: bool = False,
@@ -30,6 +35,18 @@ async def list_files(
     file_service = FileService(db)
     files = file_service.list_files(include_deleted=include_deleted)
     return files
+
+
+@router.post("/reorder")
+async def reorder_files(
+    request: ReorderRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """重新排序文件"""
+    file_service = FileService(db)
+    file_service.reorder_files(request.file_ids)
+    return {"message": "排序成功"}
 
 
 @router.get("/trash", response_model=List[FileListResponse])

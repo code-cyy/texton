@@ -55,7 +55,15 @@ class FileService:
         query = self.db.query(File)
         if not include_deleted:
             query = query.filter(File.is_deleted == False)
-        return query.order_by(File.path, File.name).all()
+        return query.order_by(File.sort_order, File.name).all()
+    
+    def reorder_files(self, file_ids: List[int]) -> None:
+        """重新排序文件"""
+        for index, file_id in enumerate(file_ids):
+            file = self.db.query(File).filter(File.id == file_id).first()
+            if file:
+                file.sort_order = index
+        self.db.commit()
     
     def list_deleted_files(self) -> List[File]:
         """列出回收站文件"""

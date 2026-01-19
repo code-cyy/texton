@@ -42,6 +42,7 @@ class FileListResponse(BaseModel):
     path: str
     language: str
     is_deleted: bool
+    sort_order: int = 0
     updated_at: datetime
     
     class Config:

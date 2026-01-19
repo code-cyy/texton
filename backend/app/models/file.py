@@ -18,6 +18,9 @@ class File(Base):
     language = Column(String(50), default="plaintext")
     encoding = Column(String(20), default="utf-8")
     
+    # 排序顺序
+    sort_order = Column(Integer, default=0, index=True)
+    
     # 状态
     is_deleted = Column(Boolean, default=False)  # 软删除
     deleted_at = Column(DateTime(timezone=True), nullable=True)

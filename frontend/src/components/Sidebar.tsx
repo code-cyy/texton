@@ -1,11 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Folder,
-  FolderOpen,
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Plus,
   Trash2,
-  ChevronRight,
   RefreshCw,
   Edit3,
   Copy,
@@ -19,6 +33,7 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  GripVertical,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,14 +42,6 @@ import { useEditorStore, FileItem } from '@/stores/editorStore'
 import { filesApi, systemApi } from '@/services/api'
 import { cn } from '@/lib/utils'
 import { useMobile } from '@/hooks/useMobile'
-
-interface FileTreeNode {
-  name: string
-  path: string
-  isFolder: boolean
-  children: FileTreeNode[]
-  file?: FileItem
-}
 
 interface ContextMenuState {
   visible: boolean
@@ -60,117 +67,55 @@ interface ToastInfo {
   message: string
 }
 
-function buildFileTree(files: FileItem[]): FileTreeNode[] {
-  const root: FileTreeNode[] = []
-  
-  files.forEach(file => {
-    const parts = file.path.split('/').filter(Boolean)
-    let current = root
-    
-    parts.forEach((part, index) => {
-      const isLast = index === parts.length - 1
-      let node = current.find(n => n.name === part)
-      
-      if (!node) {
-        node = {
-          name: part,
-          path: parts.slice(0, index + 1).join('/'),
-          isFolder: !isLast,
-          children: [],
-          file: isLast ? file : undefined,
-        }
-        current.push(node)
-      }
-      
-      if (!isLast) {
-        current = node.children
-      }
-    })
-  })
-  
-  const sortNodes = (nodes: FileTreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.isFolder && !b.isFolder) return -1
-      if (!a.isFolder && b.isFolder) return 1
-      return a.name.localeCompare(b.name)
-    })
-    nodes.forEach(n => sortNodes(n.children))
-  }
-  sortNodes(root)
-  
-  return root
-}
-
-function FileTreeItem({
-  node,
-  level = 0,
+// 可排序的文件项组件
+function SortableFileItem({
+  file,
+  isSelected,
   onSelect,
   onContextMenu,
-  selectedId,
 }: {
-  node: FileTreeNode
-  level?: number
+  file: FileItem
+  isSelected: boolean
   onSelect: (file: FileItem) => void
   onContextMenu: (e: React.MouseEvent, file: FileItem) => void
-  selectedId?: number
 }) {
-  const [expanded, setExpanded] = useState(true)
-  
-  const isSelected = node.file?.id === selectedId
-  
-  if (node.isFolder) {
-    return (
-      <div>
-        <div
-          className={cn(
-            "flex items-center gap-1 px-2 py-1 cursor-pointer rounded hover:bg-accent",
-            "text-sm text-muted-foreground"
-          )}
-          style={{ paddingLeft: `${level * 12 + 8}px` }}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <ChevronRight className={cn("h-3 w-3 transition-transform", expanded && "rotate-90")} />
-          {expanded ? <FolderOpen className="h-4 w-4 text-yellow-500" /> : <Folder className="h-4 w-4 text-yellow-500" />}
-          <span className="truncate">{node.name}</span>
-        </div>
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              {node.children.map(child => (
-                <FileTreeItem
-                  key={child.path}
-                  node={child}
-                  level={level + 1}
-                  onSelect={onSelect}
-                  onContextMenu={onContextMenu}
-                  selectedId={selectedId}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    )
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: file.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
   }
-  
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
-        "flex items-center gap-1 px-2 py-1 cursor-pointer rounded group",
-        "text-sm",
-        isSelected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+        'flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded group',
+        'text-sm',
+        isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
       )}
-      style={{ paddingLeft: `${level * 12 + 20}px` }}
-      onClick={() => node.file && onSelect(node.file)}
-      onContextMenu={(e) => node.file && onContextMenu(e, node.file)}
+      onClick={() => onSelect(file)}
+      onContextMenu={(e) => onContextMenu(e, file)}
     >
-      <FileIcon filename={node.name} />
-      <span className="truncate flex-1">{node.name}</span>
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 opacity-0 group-hover:opacity-50 hover:!opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-3 w-3" />
+      </div>
+      <FileIcon filename={file.name} />
+      <span className="truncate flex-1">{file.name}</span>
     </div>
   )
 }
@@ -428,8 +373,36 @@ export function Sidebar() {
   const filteredFiles = searchQuery
     ? files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : files
-  
-  const fileTree = buildFileTree(filteredFiles)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filteredFiles.findIndex(f => f.id === active.id)
+    const newIndex = filteredFiles.findIndex(f => f.id === over.id)
+
+    const newFiles = arrayMove(filteredFiles, oldIndex, newIndex)
+    setFiles(newFiles)
+
+    // 保存排序到后端
+    try {
+      await filesApi.reorder(newFiles.map(f => f.id))
+    } catch (error) {
+      console.error('Failed to save order:', error)
+      loadFiles() // 恢复原顺序
+    }
+  }
   
   return (
     <>
@@ -523,15 +496,26 @@ export function Sidebar() {
             )}
             
             <div className="flex-1 overflow-auto py-1">
-              {fileTree.map(node => (
-                <FileTreeItem
-                  key={node.path}
-                  node={node}
-                  onSelect={handleSelect}
-                  onContextMenu={handleContextMenu}
-                  selectedId={currentFile?.id}
-                />
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={filteredFiles.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {filteredFiles.map(file => (
+                    <SortableFileItem
+                      key={file.id}
+                      file={file}
+                      isSelected={currentFile?.id === file.id}
+                      onSelect={handleSelect}
+                      onContextMenu={handleContextMenu}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
               
               {filteredFiles.length === 0 && !loading && (
                 <div className="p-4 text-center text-sm text-muted-foreground">
