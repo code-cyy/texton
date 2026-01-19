@@ -150,6 +150,10 @@ async def perform_update():
     if settings.ENVIRONMENT != "production":
         return {"success": False, "message": "仅生产环境支持自动更新"}
     
+    # 设置完整的 PATH
+    env = os.environ.copy()
+    env["PATH"] = "/usr/local/bin:/usr/bin:/bin:" + env.get("PATH", "")
+    
     try:
         # 获取项目根目录
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -159,11 +163,12 @@ async def perform_update():
         if not os.path.exists(update_script):
             # 如果脚本不存在，只执行 git pull
             result = subprocess.run(
-                ["git", "pull", "origin", "main"],
+                ["/usr/bin/git", "pull", "origin", "main"],
                 cwd=project_root,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                env=env
             )
             if result.returncode == 0:
                 return {
@@ -176,11 +181,12 @@ async def perform_update():
         
         # 执行完整更新脚本
         result = subprocess.run(
-            ["bash", update_script],
+            ["/bin/bash", update_script],
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=300  # 5分钟超时
+            timeout=300,  # 5分钟超时
+            env=env
         )
         
         if result.returncode == 0:
