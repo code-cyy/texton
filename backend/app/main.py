@@ -143,7 +143,7 @@ async def check_update():
 
 @app.post("/api/update")
 async def perform_update():
-    """执行更新 (git pull)"""
+    """执行完整更新（拉取代码、安装依赖、构建前端、重启服务）"""
     import subprocess
     import os
     
@@ -153,27 +153,48 @@ async def perform_update():
     try:
         # 获取项目根目录
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        update_script = os.path.join(project_root, "scripts", "update.sh")
         
-        # 执行 git pull
+        # 检查更新脚本是否存在
+        if not os.path.exists(update_script):
+            # 如果脚本不存在，只执行 git pull
+            result = subprocess.run(
+                ["git", "pull", "origin", "main"],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if result.returncode == 0:
+                return {
+                    "success": True,
+                    "message": "代码已更新，请手动重启服务并重新构建前端",
+                    "output": result.stdout
+                }
+            else:
+                return {"success": False, "message": "更新失败", "error": result.stderr}
+        
+        # 执行完整更新脚本
         result = subprocess.run(
-            ["git", "pull", "origin", "main"],
+            ["bash", update_script],
             cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=300  # 5分钟超时
         )
         
         if result.returncode == 0:
             return {
                 "success": True,
-                "message": "更新成功，请重启服务",
+                "message": "更新完成！页面将自动刷新。",
                 "output": result.stdout
             }
         else:
             return {
                 "success": False,
                 "message": "更新失败",
-                "error": result.stderr
+                "error": result.stderr,
+                "output": result.stdout
             }
     except subprocess.TimeoutExpired:
         return {"success": False, "message": "更新超时"}

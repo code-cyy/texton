@@ -322,19 +322,24 @@ export function Sidebar() {
   }
 
   const handlePerformUpdate = async () => {
-    if (!confirm('确定要更新到最新版本吗？更新后需要重启服务。')) return
+    if (!confirm('确定要更新到最新版本吗？更新过程可能需要几分钟。')) return
     
     setUpdateInfo(prev => ({ ...prev, updating: true }))
+    showToast('info', '正在更新，请稍候...')
+    
     try {
       const response = await systemApi.performUpdate()
       if (response.data.success) {
-        alert('更新成功！请重启服务以应用更新。')
+        showToast('success', '更新完成！页面将在 3 秒后刷新...')
+        setTimeout(() => {
+          window.location.reload()
+        }, 3000)
       } else {
-        alert(`更新失败: ${response.data.message}`)
+        showToast('error', `更新失败: ${response.data.message}`)
       }
     } catch (error) {
       console.error('Failed to perform update:', error)
-      alert('更新失败，请手动执行 git pull')
+      showToast('error', '更新失败，请手动更新')
     } finally {
       setUpdateInfo(prev => ({ ...prev, updating: false }))
     }
