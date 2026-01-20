@@ -1,3 +1,6 @@
+import json
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -97,6 +100,18 @@ async def check_update():
     if not github_repo:
         return {"has_update": False, "message": "未配置 GitHub 仓库"}
     
+    # 获取当前版本
+    version_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "version.json"
+    )
+    current_version = "1.0.0"
+    try:
+        with open(version_file, 'r') as f:
+            current_version = json.load(f).get("version", "1.0.0")
+    except:
+        pass
+    
     try:
         async with httpx.AsyncClient() as client:
             # 获取最新 release
@@ -107,7 +122,7 @@ async def check_update():
             )
             
             if response.status_code == 404:
-                # 没有 release，检查最新 commit
+                # 没有 release，检查最新 commit 与本地是否一致
                 response = await client.get(
                     f"https://api.github.com/repos/{github_repo}/commits/main",
                     headers={"Accept": "application/vnd.github.v3+json"},
@@ -115,16 +130,36 @@ async def check_update():
                 )
                 if response.status_code == 200:
                     data = response.json()
+                    remote_sha = data["sha"][:7]
+                    
+                    # 获取本地 git commit
+                    import subprocess
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    try:
+                        result = subprocess.run(
+                            ["/usr/bin/git", "rev-parse", "--short", "HEAD"],
+                            cwd=project_root,
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        local_sha = result.stdout.strip() if result.returncode == 0 else ""
+                    except:
+                        local_sha = ""
+                    
+                    has_update = remote_sha != local_sha if local_sha else True
+                    
                     return {
-                        "has_update": True,
-                        "latest_version": data["sha"][:7],
-                        "message": data["commit"]["message"][:100],
+                        "has_update": has_update,
+                        "current_version": current_version,
+                        "latest_version": remote_sha,
+                        "message": data["commit"]["message"].split('\n')[0][:100],
+                        "release_notes": data["commit"]["message"],
                         "update_url": f"https://github.com/{github_repo}",
                         "type": "commit"
                     }
             elif response.status_code == 200:
                 data = response.json()
-                current_version = "1.0.0"
                 latest_version = data["tag_name"].lstrip("v")
                 
                 return {
