@@ -55,10 +55,13 @@ interface UpdateInfo {
   latestVersion?: string
   currentVersion?: string
   message?: string
+  releaseNotes?: string
   updateUrl?: string
   type?: 'release' | 'commit'
   checking: boolean
   updating: boolean
+  showModal: boolean
+  updateLog?: string
 }
 
 interface ToastInfo {
@@ -130,7 +133,7 @@ export function Sidebar() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, file: null })
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({ hasUpdate: false, checking: false, updating: false })
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({ hasUpdate: false, checking: false, updating: false, showModal: false })
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [toast, setToast] = useState<ToastInfo>({ visible: false, type: 'info', message: '' })
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -291,14 +294,13 @@ export function Sidebar() {
       
       if (data.error) {
         showToast('error', data.error || '检查更新失败')
-        setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
+        setUpdateInfo({ hasUpdate: false, checking: false, updating: false, showModal: false })
         return
       }
       
       if (data.message && !data.has_update) {
-        // 未配置仓库或其他提示
         showToast('info', data.message)
-        setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
+        setUpdateInfo({ hasUpdate: false, checking: false, updating: false, showModal: false })
         return
       }
       
@@ -306,47 +308,58 @@ export function Sidebar() {
         hasUpdate: data.has_update,
         latestVersion: data.latest_version,
         currentVersion: data.current_version,
-        message: data.message || data.release_notes,
+        message: data.message,
+        releaseNotes: data.release_notes,
         updateUrl: data.update_url,
         type: data.type,
         checking: false,
         updating: false,
+        showModal: data.has_update, // 有更新时显示弹窗
       })
       
-      if (data.has_update) {
-        showToast('info', `发现新版本 ${data.type === 'release' ? 'v' : '#'}${data.latest_version}`)
-      } else {
+      if (!data.has_update) {
         showToast('success', '已是最新版本')
       }
     } catch (error) {
       console.error('Failed to check update:', error)
       showToast('error', '检查更新失败，请检查网络连接')
-      setUpdateInfo({ hasUpdate: false, checking: false, updating: false })
+      setUpdateInfo({ hasUpdate: false, checking: false, updating: false, showModal: false })
     }
   }
 
   const handlePerformUpdate = async () => {
-    if (!confirm('确定要更新到最新版本吗？更新过程可能需要几分钟。')) return
-    
-    setUpdateInfo(prev => ({ ...prev, updating: true }))
-    showToast('info', '正在更新，请稍候...')
+    setUpdateInfo(prev => ({ ...prev, updating: true, updateLog: '正在更新...\n' }))
     
     try {
       const response = await systemApi.performUpdate()
       if (response.data.success) {
-        showToast('success', '更新完成！页面将在 3 秒后刷新...')
+        setUpdateInfo(prev => ({ 
+          ...prev, 
+          updating: false,
+          updateLog: (prev.updateLog || '') + (response.data.output || '') + '\n✅ 更新完成！页面将在 3 秒后刷新...'
+        }))
         setTimeout(() => {
           window.location.reload()
         }, 3000)
       } else {
-        showToast('error', `更新失败: ${response.data.message}`)
+        setUpdateInfo(prev => ({ 
+          ...prev, 
+          updating: false,
+          updateLog: (prev.updateLog || '') + '\n❌ 更新失败:\n' + (response.data.error || response.data.message || '未知错误')
+        }))
       }
     } catch (error) {
       console.error('Failed to perform update:', error)
-      showToast('error', '更新失败，请手动更新')
-    } finally {
-      setUpdateInfo(prev => ({ ...prev, updating: false }))
+      setUpdateInfo(prev => ({ 
+        ...prev, 
+        updating: false,
+        updateLog: (prev.updateLog || '') + '\n❌ 更新失败，请手动更新'
+      }))
     }
+  }
+
+  const closeUpdateModal = () => {
+    setUpdateInfo(prev => ({ ...prev, showModal: false, updateLog: undefined }))
   }
   
   const handleCreate = async () => {
@@ -534,57 +547,7 @@ export function Sidebar() {
             </div>
 
             {/* 底部工具栏 */}
-            <div className="p-2 border-t space-y-2">
-              {/* 更新状态提示 */}
-              <AnimatePresence>
-                {updateInfo.hasUpdate && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs"
-                  >
-                    <div className="flex items-center gap-2 text-blue-500 mb-1">
-                      <AlertCircle className="h-3 w-3" />
-                      <span className="font-medium">发现新版本</span>
-                    </div>
-                    <p className="text-muted-foreground truncate">
-                      {updateInfo.type === 'release' 
-                        ? `v${updateInfo.latestVersion}` 
-                        : `#${updateInfo.latestVersion}`}
-                    </p>
-                    {updateInfo.message && (
-                      <p className="text-muted-foreground truncate mt-1">{updateInfo.message}</p>
-                    )}
-                    <div className="flex gap-2 mt-2">
-                      <Button 
-                        size="sm" 
-                        className="h-6 text-xs flex-1"
-                        onClick={handlePerformUpdate}
-                        disabled={updateInfo.updating}
-                      >
-                        {updateInfo.updating ? (
-                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                        ) : (
-                          <CloudCog className="h-3 w-3 mr-1" />
-                        )}
-                        更新
-                      </Button>
-                      {updateInfo.updateUrl && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="h-6 text-xs"
-                          onClick={() => window.open(updateInfo.updateUrl, '_blank')}
-                        >
-                          查看
-                        </Button>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
+            <div className="p-2 border-t">
               {/* 工具按钮和版本号 */}
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground/50 pl-1">v{appVersion}</span>
@@ -661,6 +624,102 @@ export function Sidebar() {
             {toast.type === 'info' && <AlertCircle className="h-4 w-4" />}
             {toast.message}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 更新弹窗 */}
+      <AnimatePresence>
+        {updateInfo.showModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[200]"
+              onClick={!updateInfo.updating ? closeUpdateModal : undefined}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] w-full max-w-md bg-background rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">
+                    {updateInfo.updateLog ? '更新日志' : '发现新版本'}
+                  </h3>
+                  {!updateInfo.updating && (
+                    <button onClick={closeUpdateModal} className="p-1 hover:bg-muted rounded">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="p-4 max-h-80 overflow-auto">
+                {updateInfo.updateLog ? (
+                  <pre className="text-xs font-mono whitespace-pre-wrap bg-muted p-3 rounded-lg">
+                    {updateInfo.updateLog}
+                  </pre>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                        <CloudCog className="h-6 w-6 text-blue-500" />
+                      </div>
+                      <div>
+                        <div className="font-medium">
+                          {updateInfo.type === 'release' ? `v${updateInfo.latestVersion}` : `#${updateInfo.latestVersion}`}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          当前版本: v{appVersion}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {(updateInfo.message || updateInfo.releaseNotes) && (
+                      <div className="bg-muted p-3 rounded-lg text-sm">
+                        <div className="font-medium mb-1">更新内容:</div>
+                        <div className="text-muted-foreground whitespace-pre-wrap">
+                          {updateInfo.releaseNotes || updateInfo.message}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              
+              <div className="p-4 border-t flex gap-2">
+                {!updateInfo.updateLog && (
+                  <>
+                    <Button variant="outline" className="flex-1" onClick={closeUpdateModal}>
+                      稍后再说
+                    </Button>
+                    <Button 
+                      className="flex-1" 
+                      onClick={handlePerformUpdate}
+                      disabled={updateInfo.updating}
+                    >
+                      {updateInfo.updating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          更新中...
+                        </>
+                      ) : (
+                        '立即更新'
+                      )}
+                    </Button>
+                  </>
+                )}
+                {updateInfo.updateLog && !updateInfo.updating && (
+                  <Button className="flex-1" onClick={closeUpdateModal}>
+                    关闭
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>
