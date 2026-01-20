@@ -105,8 +105,11 @@ export const filesApi = {
   export: (id: number) =>
     api.get(`/files/${id}/export`, { responseType: 'blob' }),
   
-  exportAll: () =>
-    api.get('/files/export-all', { responseType: 'blob' }),
+  exportAll: (password?: string) =>
+    api.get('/files/export-all', { 
+      responseType: 'blob',
+      params: password ? { password } : undefined
+    }),
   
   import: (data: { files: Array<{ name: string; path: string; content: string; language?: string }> }) =>
     api.post('/files/import', data),

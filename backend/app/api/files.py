@@ -61,51 +61,69 @@ async def list_trash(
 
 @router.get("/export-all")
 async def export_all_files(
+    password: str = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """导出所有文件为 ZIP 压缩包"""
+    """导出所有文件为 ZIP 压缩包（可选密码保护）"""
     file_service = FileService(db)
     files = file_service.list_files(include_deleted=False)
     
-    # 创建内存中的 ZIP 文件
     zip_buffer = io.BytesIO()
     
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        # 添加元数据文件
-        metadata = {
-            "exported_at": datetime.utcnow().isoformat(),
-            "file_count": len(files),
-            "files": []
-        }
-        
-        for f in files:
-            file_obj = file_service.get_file(f.id)
-            if file_obj:
-                content = file_service.get_file_content(file_obj)
-                
-                # 文件路径（去掉开头的斜杠）
-                file_path = f.path.lstrip('/')
-                if not file_path:
-                    file_path = f.name
-                
-                # 添加文件到 ZIP
-                zip_file.writestr(file_path, content.encode('utf-8'))
-                
-                # 记录元数据
-                metadata["files"].append({
-                    "name": f.name,
-                    "path": f.path,
-                    "language": f.language,
-                    "created_at": f.created_at.isoformat() if f.created_at else None,
-                    "updated_at": f.updated_at.isoformat() if f.updated_at else None,
-                })
-        
-        # 添加元数据文件
-        zip_file.writestr(
-            "_metadata.json",
-            json.dumps(metadata, ensure_ascii=False, indent=2).encode('utf-8')
-        )
+    # 如果有密码，使用 pyzipper 创建加密 ZIP
+    if password:
+        import pyzipper
+        with pyzipper.AESZipFile(zip_buffer, 'w', compression=pyzipper.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zip_file:
+            zip_file.setpassword(password.encode('utf-8'))
+            
+            metadata = {
+                "exported_at": datetime.utcnow().isoformat(),
+                "file_count": len(files),
+                "encrypted": True,
+                "files": []
+            }
+            
+            for f in files:
+                file_obj = file_service.get_file(f.id)
+                if file_obj:
+                    content = file_service.get_file_content(file_obj)
+                    file_path = f.path.lstrip('/') or f.name
+                    zip_file.writestr(file_path, content.encode('utf-8'))
+                    metadata["files"].append({
+                        "name": f.name,
+                        "path": f.path,
+                        "language": f.language,
+                        "created_at": f.created_at.isoformat() if f.created_at else None,
+                        "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+                    })
+            
+            zip_file.writestr("_metadata.json", json.dumps(metadata, ensure_ascii=False, indent=2).encode('utf-8'))
+    else:
+        # 无密码，使用标准 zipfile
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            metadata = {
+                "exported_at": datetime.utcnow().isoformat(),
+                "file_count": len(files),
+                "encrypted": False,
+                "files": []
+            }
+            
+            for f in files:
+                file_obj = file_service.get_file(f.id)
+                if file_obj:
+                    content = file_service.get_file_content(file_obj)
+                    file_path = f.path.lstrip('/') or f.name
+                    zip_file.writestr(file_path, content.encode('utf-8'))
+                    metadata["files"].append({
+                        "name": f.name,
+                        "path": f.path,
+                        "language": f.language,
+                        "created_at": f.created_at.isoformat() if f.created_at else None,
+                        "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+                    })
+            
+            zip_file.writestr("_metadata.json", json.dumps(metadata, ensure_ascii=False, indent=2).encode('utf-8'))
     
     zip_buffer.seek(0)
     

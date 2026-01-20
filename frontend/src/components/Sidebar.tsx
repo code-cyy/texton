@@ -246,8 +246,12 @@ export function Sidebar() {
   }
 
   const handleExportAll = async () => {
+    // 弹出密码输入框
+    const password = prompt('设置 ZIP 解压密码（留空则不加密）：')
+    
     try {
-      const response = await filesApi.exportAll()
+      showToast('info', '正在导出...')
+      const response = await filesApi.exportAll(password || undefined)
       const blob = new Blob([response.data], { type: 'application/zip' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -255,7 +259,7 @@ export function Sidebar() {
       a.download = `texton-backup-${new Date().toISOString().slice(0, 10)}.zip`
       a.click()
       URL.revokeObjectURL(url)
-      showToast('success', '导出成功')
+      showToast('success', password ? '导出成功（已加密）' : '导出成功')
     } catch (error) {
       console.error('Failed to export all files:', error)
       showToast('error', '导出失败')
