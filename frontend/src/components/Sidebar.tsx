@@ -298,14 +298,16 @@ export function Sidebar() {
         return
       }
       
-      if (data.message && !data.has_update) {
-        showToast('info', data.message)
+      // 没有更新时直接提示
+      if (!data.has_update) {
+        showToast('success', '已是最新版本')
         setUpdateInfo({ hasUpdate: false, checking: false, updating: false, showModal: false })
         return
       }
       
+      // 有更新时显示弹窗
       setUpdateInfo({
-        hasUpdate: data.has_update,
+        hasUpdate: true,
         latestVersion: data.latest_version,
         currentVersion: data.current_version,
         message: data.message,
@@ -314,12 +316,8 @@ export function Sidebar() {
         type: data.type,
         checking: false,
         updating: false,
-        showModal: data.has_update, // 有更新时显示弹窗
+        showModal: true,
       })
-      
-      if (!data.has_update) {
-        showToast('success', '已是最新版本')
-      }
     } catch (error) {
       console.error('Failed to check update:', error)
       showToast('error', '检查更新失败，请检查网络连接')
@@ -332,28 +330,44 @@ export function Sidebar() {
     
     try {
       const response = await systemApi.performUpdate()
+      const output = response.data.output || ''
+      
       if (response.data.success) {
         setUpdateInfo(prev => ({ 
           ...prev, 
           updating: false,
-          updateLog: (prev.updateLog || '') + (response.data.output || '') + '\n✅ 更新完成！页面将在 3 秒后刷新...'
+          updateLog: output + '\n\n✅ 更新完成！页面将在 3 秒后刷新...'
         }))
         setTimeout(() => {
           window.location.reload()
         }, 3000)
       } else {
-        setUpdateInfo(prev => ({ 
-          ...prev, 
-          updating: false,
-          updateLog: (prev.updateLog || '') + '\n❌ 更新失败:\n' + (response.data.error || response.data.message || '未知错误')
-        }))
+        // 检查是否实际上更新成功了（git pull 输出包含更新信息）
+        const isActuallySuccess = output.includes('->') || output.includes('Already up to date')
+        
+        if (isActuallySuccess) {
+          setUpdateInfo(prev => ({ 
+            ...prev, 
+            updating: false,
+            updateLog: output + '\n\n✅ 更新完成！页面将在 3 秒后刷新...'
+          }))
+          setTimeout(() => {
+            window.location.reload()
+          }, 3000)
+        } else {
+          setUpdateInfo(prev => ({ 
+            ...prev, 
+            updating: false,
+            updateLog: '❌ 更新失败:\n' + (response.data.error || response.data.message || '未知错误')
+          }))
+        }
       }
     } catch (error) {
       console.error('Failed to perform update:', error)
       setUpdateInfo(prev => ({ 
         ...prev, 
         updating: false,
-        updateLog: (prev.updateLog || '') + '\n❌ 更新失败，请手动更新'
+        updateLog: '❌ 更新失败，请手动更新'
       }))
     }
   }
@@ -639,10 +653,16 @@ export function Sidebar() {
               onClick={!updateInfo.updating ? closeUpdateModal : undefined}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[201] w-full max-w-md bg-background rounded-xl shadow-2xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed z-[201] w-[calc(100%-2rem)] max-w-md bg-background rounded-xl shadow-2xl overflow-hidden"
+              style={{ 
+                left: '50%', 
+                top: '50%', 
+                transform: 'translate(-50%, -50%)',
+                maxHeight: 'calc(100vh - 4rem)'
+              }}
             >
               <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
@@ -670,7 +690,9 @@ export function Sidebar() {
                       </div>
                       <div>
                         <div className="font-medium">
-                          {updateInfo.type === 'release' ? `v${updateInfo.latestVersion}` : `#${updateInfo.latestVersion}`}
+                          {updateInfo.type === 'release' 
+                            ? `新版本 v${updateInfo.latestVersion}` 
+                            : `新提交 #${updateInfo.latestVersion}`}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           当前版本: v{appVersion}
