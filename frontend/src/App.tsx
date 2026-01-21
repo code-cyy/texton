@@ -9,6 +9,7 @@ import { Editor } from '@/components/Editor'
 import { StatusBar } from '@/components/StatusBar'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { HistoryPanel } from '@/components/HistoryPanel'
+import { LockScreen } from '@/components/LockScreen'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -35,6 +36,7 @@ function App() {
       <StatusBar />
       <SettingsPanel />
       <HistoryPanel />
+      <LockScreen />
     </div>
   )
 }
