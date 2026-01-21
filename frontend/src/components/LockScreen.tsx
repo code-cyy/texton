@@ -33,6 +33,19 @@ export function LockScreen() {
     return () => clearInterval(interval)
   }, [autoLockEnabled, autoLockMinutes, lastActivity, isLocked])
 
+  // 锁定时修改标签页标题
+  useEffect(() => {
+    const originalTitle = document.title
+    if (isLocked) {
+      document.title = '🔒 已锁定 - TextOn'
+    } else {
+      document.title = 'TextOn'
+    }
+    return () => {
+      document.title = originalTitle
+    }
+  }, [isLocked])
+
   // 监听用户活动
   useEffect(() => {
     if (isLocked) return
