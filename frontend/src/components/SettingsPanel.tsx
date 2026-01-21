@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Sun, Moon, Monitor, Type, Keyboard, Sparkles, MousePointer2, Brackets, Scroll, Highlighter, Palette, Shield, Check } from 'lucide-react'
 import { useEditorStore } from '@/stores/editorStore'
-import { useSettingsStore, CODE_FONTS, UI_FONTS, COLOR_SCHEMES } from '@/stores/settingsStore'
+import { useSettingsStore, CODE_FONTS, UI_FONTS, COLOR_SCHEMES, SettingsState } from '@/stores/settingsStore'
 import { cn } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 import { useMobile } from '@/hooks/useMobile'
@@ -139,7 +139,7 @@ export function SettingsPanel() {
 }
 
 // 桌面端设置内容
-function SettingsContent({ section, settings }: { section: SettingsSection; settings: ReturnType<typeof useSettingsStore> }) {
+function SettingsContent({ section, settings }: { section: SettingsSection; settings: SettingsType }) {
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -169,7 +169,7 @@ function SettingsContent({ section, settings }: { section: SettingsSection; sett
 function MobileSettingsContent({ section, setSection, settings }: { 
   section: SettingsSection
   setSection: (s: SettingsSection) => void
-  settings: ReturnType<typeof useSettingsStore> 
+  settings: SettingsType 
 }) {
   const [showDetail, setShowDetail] = useState(false)
 
@@ -224,12 +224,14 @@ function MobileSettingsContent({ section, setSection, settings }: {
   )
 }
 
+// Settings 类型
+type SettingsType = SettingsState
 
 // ============================================
 // 各设置页面组件
 // ============================================
 
-function AppearanceSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function AppearanceSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-6">
       <SettingGroup label="主题">
@@ -283,7 +285,7 @@ function AppearanceSettings({ settings }: { settings: ReturnType<typeof useSetti
   )
 }
 
-function ColorSchemeSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function ColorSchemeSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <SettingGroup label="深色配色">
@@ -314,7 +316,7 @@ function ColorSchemeSettings({ settings }: { settings: ReturnType<typeof useSett
   )
 }
 
-function EditorSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function EditorSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <SettingRow label="字体大小" value={`${settings.fontSize}px`}>
@@ -352,7 +354,7 @@ function EditorSettings({ settings }: { settings: ReturnType<typeof useSettingsS
   )
 }
 
-function AutocompleteSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function AutocompleteSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <ToggleRow label="快速建议" description="输入时显示代码建议" checked={settings.quickSuggestions} onChange={settings.setQuickSuggestions} />
@@ -375,7 +377,7 @@ function AutocompleteSettings({ settings }: { settings: ReturnType<typeof useSet
   )
 }
 
-function CursorSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function CursorSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <SettingGroup label="光标样式">
@@ -410,7 +412,7 @@ function CursorSettings({ settings }: { settings: ReturnType<typeof useSettingsS
   )
 }
 
-function BracketsSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function BracketsSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <ToggleRow label="括号对着色" description="用不同颜色区分嵌套的括号对" checked={settings.bracketPairColorization} onChange={settings.setBracketPairColorization} />
@@ -446,7 +448,7 @@ function BracketsSettings({ settings }: { settings: ReturnType<typeof useSetting
 }
 
 
-function ScrollSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function ScrollSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <ToggleRow label="平滑滚动" description="启用平滑滚动动画" checked={settings.smoothScrolling} onChange={settings.setSmoothScrolling} />
@@ -468,7 +470,7 @@ function ScrollSettings({ settings }: { settings: ReturnType<typeof useSettingsS
   )
 }
 
-function HighlightSettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function HighlightSettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <ToggleRow label="选择高亮" description="高亮显示与选中文本相同的内容" checked={settings.selectionHighlight} onChange={settings.setSelectionHighlight} />
@@ -494,7 +496,7 @@ function HighlightSettings({ settings }: { settings: ReturnType<typeof useSettin
   )
 }
 
-function SecuritySettings({ settings }: { settings: ReturnType<typeof useSettingsStore> }) {
+function SecuritySettings({ settings }: { settings: SettingsType }) {
   return (
     <div className="space-y-5">
       <ToggleRow 

@@ -43,7 +43,7 @@ export const COLOR_SCHEMES = [
 
 export type ColorScheme = typeof COLOR_SCHEMES[number]['value']
 
-interface SettingsState {
+export interface SettingsState {
   // 主题
   theme: 'light' | 'dark' | 'system'
   setTheme: (theme: 'light' | 'dark' | 'system') => void
