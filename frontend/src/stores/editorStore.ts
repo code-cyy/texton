@@ -52,10 +52,20 @@ export const useEditorStore = create<EditorState>((set) => ({
   setFiles: (files) => set({ files }),
   
   currentFile: null,
-  setCurrentFile: (file) => set({ 
-    currentFile: file, 
-    editorContent: file?.content || '',
-    saveStatus: 'saved'
+  setCurrentFile: (file) => set((state) => {
+    // 如果是同一个文件（只是更新属性），保留当前编辑内容
+    if (file && state.currentFile && file.id === state.currentFile.id) {
+      return { 
+        currentFile: file,
+        // 不重置 editorContent，保留用户正在编辑的内容
+      }
+    }
+    // 切换到不同文件时，加载新文件内容
+    return { 
+      currentFile: file, 
+      editorContent: file?.content || '',
+      saveStatus: 'saved'
+    }
   }),
   
   editorContent: '',
