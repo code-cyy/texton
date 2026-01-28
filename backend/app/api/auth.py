@@ -173,12 +173,8 @@ async def verify_totp(request: Verify2FARequest, db: Session = Depends(get_db)):
     """验证 TOTP 验证码 (用于解锁屏幕)"""
     auth_service = AuthService(db)
     
-    # 从 token 获取用户
-    from app.api.deps import get_current_user
-    from app.core.security import decode_token
-    
-    # 简单验证：检查是否有有效用户的 2FA
-    user = auth_service.get_user_by_username("admin")  # 默认用户
+    # 获取第一个用户（单用户系统）
+    user = db.query(User).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
