@@ -150,12 +150,28 @@ export function HistoryPanel() {
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
     const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
     
     if (minutes < 1) return '刚刚'
     if (minutes < 60) return `${minutes} 分钟前`
-    if (hours < 24) return `${hours} 小时前`
-    if (days < 7) return `${days} 天前`
+    if (hours < 6) return `${hours} 小时前`
+    
+    // 超过 6 小时显示具体日期时间
+    const isToday = date.toDateString() === now.toDateString()
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const isYesterday = date.toDateString() === yesterday.toDateString()
+    
+    const timeStr = date.toLocaleString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    
+    if (isToday) {
+      return `今天 ${timeStr}`
+    }
+    if (isYesterday) {
+      return `昨天 ${timeStr}`
+    }
     
     return date.toLocaleString('zh-CN', {
       month: '2-digit',
