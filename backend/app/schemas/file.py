@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional
+from datetime import datetime, timezone
 
 
 class FileCreate(BaseModel):
@@ -34,6 +34,9 @@ class FileResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
 
 
 class FileListResponse(BaseModel):
@@ -47,6 +50,9 @@ class FileListResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
 
 
 class FileVersionResponse(BaseModel):
@@ -57,6 +63,9 @@ class FileVersionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.replace(tzinfo=timezone.utc).isoformat() if v.tzinfo is None else v.isoformat()
+        }
 
 
 class FileRestoreRequest(BaseModel):
